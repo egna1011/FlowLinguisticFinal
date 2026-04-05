@@ -777,14 +777,14 @@ input[type="text"] { background-image: none; padding-right: 13px; }
 //  (replace the placeholder values below with your own)
 // ─────────────────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyCJR6HQSq4Z7_TnG46d8YqF1og2cX4biao",
-  authDomain: "flowlinguistic.firebaseapp.com",
-  databaseURL: "https://flowlinguistic-default-rtdb.firebaseio.com",
-  projectId: "flowlinguistic",
-  storageBucket: "flowlinguistic.firebasestorage.app",
-  messagingSenderId: "215050443879",
-  appId: "1:215050443879:web:92e2cd4d8b800da21348c2",
-  measurementId: "G-V38NB56X83"};
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId:         "YOUR_PROJECT",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
 // ─────────────────────────────────────────────────────────
 
 // Guard: show helpful error if config not filled in
@@ -1066,6 +1066,7 @@ function startRecognition(){
   recognition.continuous=true;
   recognition.interimResults=true;
   recognition.lang=SPEECH_MAP[mySpeakLang]||'en-US';
+  let lastSentFinal='';
   recognition.onresult=e=>{
     let interim='',final='';
     for(let i=e.resultIndex;i<e.results.length;i++){
@@ -1073,7 +1074,10 @@ function startRecognition(){
       else interim+=e.results[i][0].transcript;
     }
     if(interim){showLive('local',interim);sendDC({type:'live',text:interim});}
-    if(final.trim()){hideLive('local');addMyMsg(final.trim());sendDC({type:'final',text:final.trim()});}
+    if(final.trim()&&final.trim()!==lastSentFinal){
+      lastSentFinal=final.trim();
+      hideLive('local');addMyMsg(final.trim());sendDC({type:'final',text:final.trim()});
+    }
   };
   recognition.onerror=e=>{if(e.error!=='no-speech')console.warn('SR:',e.error);};
   recognition.onend=()=>{if(transcribing&&recognizing)recognition.start();};
@@ -1096,11 +1100,21 @@ function updateHearLang(){
 
 // ── translation ───────────────────────────────────────────
 async function translate(text,from,to){
-  if(from===to)return text;
+  if(from===to||!text.trim())return text;
+  // Try Google Translate (unofficial free endpoint)
+  try{
+    const url=`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d&&d[0]){
+      return d[0].filter(Boolean).map(x=>x[0]).join('');
+    }
+  }catch{}
+  // Fallback: MyMemory
   try{
     const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
     const d=await r.json();
-    if(d.responseStatus===200)return d.responseData.translatedText;
+    if(d.responseStatus===200&&d.responseData.translatedText)return d.responseData.translatedText;
   }catch{}
   return text;
 }
